@@ -1,0 +1,12 @@
+# Godot 4+ 缓存目录（含导入缓存、着色器缓存，勿提交）
+.godot/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地构建产物
+build/
+*.ipa
+*.zip

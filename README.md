@@ -6,6 +6,24 @@
 
 ---
 
+## 本仓库已含最小工程骨架
+
+仓库里已经放好一个能直接跑的 Godot 4.7 工程骨架，克隆下来用 **Godot 4.7.2** 打开即可编辑：
+
+| 文件 | 作用 |
+|---|---|
+| `project.godot` | 工程配置，已设 **Compatibility 渲染器**（iOS 15 必需）、主场景 `main.tscn` |
+| `main.tscn` / `main.gd` | 最小主场景 + 示例脚本（界面显示引擎版本，方便确认 pck 更新是否生效） |
+| `icon.svg` | 工程图标 |
+| `export_presets.cfg` | iOS 导出预设（`MyGame` / `com.yourname.mygame` / iOS 15） |
+| `.gitignore` | 忽略 `.godot/` 缓存与构建产物 |
+
+> 若你已有自己的工程，只需把 `.github/workflows/` 和 `export_presets.cfg` 拷过去，其余骨架文件可删除。
+>
+> iOS 的 App 图标（多个尺寸 PNG）需在 Godot 里 `项目 → 导出 → iOS → Application → Icon` 单独配置；未配置时 Godot 用默认图标，不影响构建与安装。
+
+---
+
 ## ⚠️ 第一步（最关键）：iOS 15 必须改用 Compatibility 渲染器
 
 Godot 4.7 的原生 iOS 导出最低支持 iOS 15.0，但**仅限 Compatibility 渲染器**；默认的 Mobile（Metal）渲染器要求 iOS 16+。不改的话装上会直接黑屏或闪退。
@@ -39,6 +57,8 @@ name="iOS"
 platform="iOS"
 runnable=true
 export_filter="all_resources"
+include_filter=""
+exclude_filter=""
 export_path="build/MyGame.xcodeproj"   # 与 workflow 的 project_name 对应
 encryption_include_filters=""
 encryption_exclude_filters=""
