@@ -27,6 +27,9 @@ jobs:
     # 若构建报 "The iOS 15.0 deployment target is not supported"，改用 macos-13。
     runs-on: macos-14
     timeout-minutes: 60
+    # 发版需要 contents 写权限（创建 Release + 上传 asset）
+    permissions:
+      contents: write
 
     env:
       GODOT_VERSION: ${{ github.event.inputs.godot_version }}
@@ -111,3 +114,30 @@ jobs:
           name: ${{ github.event.inputs.project_name }}-ios-ipa
           path: build/${{ github.event.inputs.project_name }}.ipa
           retention-days: 30
+
+      # ★ 自动发版：runner 有正常公网 + 内置 GITHUB_TOKEN，直接把 IPA 挂到 Release。
+      #   沙箱（本机）无法下载 artifact（Azure blob 被网络策略拦截），故由 runner 代发。
+      - name: 发布 Release（未签名 IPA）
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-${{ github.run_number }}
+          name: MyGame iOS IPA (unsigned) · build ${{ github.run_number }}
+          body: |
+            ## 未签名 iOS IPA —— 供 TrollStore / 越狱设备安装
+
+            - Godot ${{ env.GODOT_VERSION }}
+            - 最低 iOS ${{ env.MIN_IOS }}
+            - 包名：com.yourname.mygame
+
+            ### 安装方式
+            1. iPhone 装好 **TrollStore**（iOS 14–16.6.1 / 17.0）
+               或 **越狱 + AppSync Unified**。
+            2. 用 TrollStore 打开下面的 `MyGame.ipa` 即可永久安装（无需证书/7 天续签）。
+
+            ### 只更新游戏内容（零 CI 成本）
+            日常改游戏逻辑/资源，本地导出 `MyGame.pck` 替换进 IPA 即可，
+            无需重跑本流水线。详见仓库 README。
+          files: build/${{ github.event.inputs.project_name }}.ipa
+          make_latest: true
+          prerelease: false
