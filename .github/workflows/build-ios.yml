@@ -23,9 +23,13 @@ on:
 
 jobs:
   build:
-    # macos-14 镜像预装的 Xcode 相对保守，仍有较高概率支持 iOS 15 部署目标。
-    # 若构建报 "The iOS 15.0 deployment target is not supported"，改用 macos-13。
-    runs-on: macos-14
+    # ★ 必须用 macos-15（Xcode 16 / iOS 18 SDK）！
+    #   Godot 4.7.2 的导出模板 libgodot.a 用 Xcode 16 / iOS 18 SDK 编译，
+    #   引用了 iOS 18 才有的符号（NSProcessPerformanceProfile*、SwiftUICore、
+    #   _LocationEssentials 等）。macos-14 只有 Xcode 15.4（iOS 17.5 SDK），
+    #   链接会报 "Undefined symbols for architecture arm64" 并致命失败。
+    #   注意：部署目标仍可锁 iOS 15.0（Xcode 16 支持），只是 SDK 要新。
+    runs-on: macos-15
     timeout-minutes: 60
     # 发版需要 contents 写权限（创建 Release + 上传 asset）
     permissions:
@@ -84,6 +88,10 @@ jobs:
 
       - name: 编译为未签名 .app
         run: |
+          # pipefail：xcodebuild 失败时必须让整条管道的非零退出码透传出来，
+          # 否则 "xcodebuild ... | tail" 的退出码来自 tail(永远成功)，会掩盖链接失败、
+          # 把没有 Mach-O 的空壳 .app 当成成功发出去（已踩过坑）。
+          set -o pipefail
           cd build
           xcodebuild \
             -project "${PROJECT_NAME}.xcodeproj" \
@@ -94,7 +102,7 @@ jobs:
             -derivedDataPath ./DerivedData \
             $SIGN_OPTS \
             ONLY_ACTIVE_ARCH=NO \
-            | tail -n 40
+            | tail -n 60
           echo "--- 产物 ---"
           find ./DerivedData/Build/Products -maxdepth 2 -name "*.app"
 
@@ -103,10 +111,21 @@ jobs:
           cd build
           APP=$(find ./DerivedData/Build/Products -maxdepth 2 -name "*.app" | head -n 1)
           echo "打包: $APP"
+          # ★ 硬校验：没有 Mach-O 可执行文件就绝不打包，避免发出无法运行的空壳 IPA。
+          BIN="$APP/$PROJECT_NAME"
+          if [ ! -f "$BIN" ]; then
+            echo "::error::未找到可执行文件 $BIN，说明 xcodebuild 链接失败，终止打包"
+            echo "::group::DerivedData 内容"
+            find ./DerivedData/Build/Products -maxdepth 3 2>/dev/null || true
+            echo "::endgroup::"
+            exit 1
+          fi
           rm -rf Payload && mkdir -p Payload
           cp -R "$APP" Payload/
           zip -qry "${PROJECT_NAME}.ipa" Payload
           ls -lh "${PROJECT_NAME}.ipa"
+          echo "== IPA 可执行文件校验 =="
+          unzip -l "${PROJECT_NAME}.ipa" | grep -E "Payload/.*\.app/$PROJECT_NAME$|Payload/.*\.app/Frameworks/" || echo "(警告：未检测到 Frameworks/)"
 
       - name: 上传 IPA
         uses: actions/upload-artifact@v4
