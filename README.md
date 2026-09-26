@@ -133,7 +133,10 @@ Payload/MyGame.app/
 | 现象 | 原因 / 解法 |
 |---|---|
 | `The iOS 15.0 deployment target is not supported` | runner 的 Xcode 太新。改 `runs-on: macos-13`，或在 workflow 里 `sudo xcode-select -s /Applications/Xcode_15.x.app` |
-| 导出时提示模板缺失 / 版本不匹配 | 本地 Godot 版本与 workflow 里 `godot_version` 不一致，核对一下 |
+| 导出时提示模板缺失 / `No export template found at .../export_templates/...` | 模板必须装到 `export_templates` 目录（不是 `templates`）。workflow 第 5 步已修正 |
+| 导出报空 `configuration errors`（无具体文字） | iOS 导出硬性要求开启 ASTC 纹理压缩。需在 `project.godot` 设 `rendering/textures/vram_compression/import_etc2_astc=true` |
+| `App Store Team ID not specified` | preset 里 `application/app_store_team_id` 不能留空，填任意 10 位字母数字占位即可 |
+| `Ad Hoc code signing is not allowed with SDK 'iOS 17.5'` | Godot 在 macOS 上导出时会**内部调 xcodebuild archive**，而 iOS 17.5 SDK 禁止 ad-hoc 签名。解法：preset 里设 `application/export_project_only=true`，让 Godot 只生成 `.xcodeproj`，真正的免签名编译交给 CI（带 `CODE_SIGNING_ALLOWED=NO`） |
 | 安装后打开闪退 | 99% 是渲染器没改成 Compatibility，回看第一节 |
 | TrollStore 装不上 / 提示不支持 | 确认系统版本在 iOS 14.0–16.6.1 区间内；iOS 17.0.1+ 该漏洞已修补 |
 | xcodebuild 报签名相关错误 | workflow 已用 `CODE_SIGNING_ALLOWED=NO` 全套关掉，若仍报错检查 preset 里是否残留 team id |
