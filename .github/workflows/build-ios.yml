@@ -66,9 +66,11 @@ jobs:
           curl -sSL -o templates.tpz \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
           unzip -q templates.tpz
-          mkdir -p "$HOME/Library/Application Support/Godot/templates/${GODOT_VERSION}.stable"
-          mv templates/* "$HOME/Library/Application Support/Godot/templates/${GODOT_VERSION}.stable/"
-          ls "$HOME/Library/Application Support/Godot/templates/${GODOT_VERSION}.stable/"
+          # ★ 关键：Godot 找模板的路径是 export_templates（不是 templates）！
+          #   装错目录会导致导出时报 "No export template found"。
+          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mv templates/* "$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable/"
+          ls "$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable/"
 
       - name: 导出 Xcode 工程
         run: |

@@ -17,3 +17,8 @@ config/icon="res://icon.svg"
 ; 默认的 Mobile(Metal) 渲染器要求 iOS 16+，用错会导致安装后黑屏/闪退。
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+; ★ iOS 导出硬性要求：开启 ETC2/ASTC 纹理压缩，否则 Godot 报
+;   "Cannot export project with preset iOS due to configuration errors"（空消息）。
+;   iOS 设备必须使用 ASTC 纹理格式。
+textures/vram_compression/import_etc2_astc=true
