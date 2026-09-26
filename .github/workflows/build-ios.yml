@@ -1,0 +1,111 @@
+# =============================================================
+# Godot 4 -> iOS IPA（免签名，供 TrollStore / 越狱设备安装）
+# 无需 Apple 开发者账号、无需证书、无需本机 Mac
+# 用法：放到仓库的 .github/workflows/build-ios.yml，然后手动触发
+# =============================================================
+name: Build Godot iOS IPA (unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      godot_version:
+        description: 'Godot 版本（需与本地编辑器完全一致）'
+        required: true
+        default: '4.7.2'
+      project_name:
+        description: '导出 preset 里填的工程名'
+        required: true
+        default: 'MyGame'
+      min_ios:
+        description: '最低 iOS 版本'
+        required: true
+        default: '15.0'
+
+jobs:
+  build:
+    # macos-14 镜像预装的 Xcode 相对保守，仍有较高概率支持 iOS 15 部署目标。
+    # 若构建报 "The iOS 15.0 deployment target is not supported"，改用 macos-13。
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    env:
+      GODOT_VERSION: ${{ github.event.inputs.godot_version }}
+      PROJECT_NAME: ${{ github.event.inputs.project_name }}
+      MIN_IOS: ${{ github.event.inputs.min_ios }}
+      # 关闭签名：我们要的是未签名 .app，交给 TrollStore 永久重签
+      SIGN_OPTS: >-
+        CODE_SIGNING_ALLOWED=NO
+        CODE_SIGN_IDENTITY=""
+        CODE_SIGNING_REQUIRED=NO
+        CODE_SIGN_ENTITLEMENTS=""
+        PROVISIONING_PROFILE_SPECIFIER=""
+        IPHONEOS_DEPLOYMENT_TARGET=${{ github.event.inputs.min_ios }}
+
+    steps:
+      - name: 检出项目
+        uses: actions/checkout@v4
+
+      - name: 确认 Xcode 与 iOS SDK
+        run: |
+          ls /Applications | grep -i xcode || true
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: 下载 Godot 编辑器（macOS 版）
+        run: |
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          unzip -q godot.zip
+          ls -d Godot*.app
+          chmod +x Godot*.app/Contents/MacOS/Godot
+          Godot*.app/Contents/MacOS/Godot --headless --version
+
+      - name: 下载并安装导出模板
+        run: |
+          curl -sSL -o templates.tpz \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          mkdir -p "$HOME/Library/Application Support/Godot/templates/${GODOT_VERSION}.stable"
+          mv templates/* "$HOME/Library/Application Support/Godot/templates/${GODOT_VERSION}.stable/"
+          ls "$HOME/Library/Application Support/Godot/templates/${GODOT_VERSION}.stable/"
+
+      - name: 导出 Xcode 工程
+        run: |
+          mkdir -p build
+          Godot*.app/Contents/MacOS/Godot --headless --path "$PWD" \
+            --export-release "iOS" "$PWD/build/${PROJECT_NAME}.xcodeproj"
+          find build -maxdepth 2 -name "*.xcodeproj"
+
+      - name: 编译为未签名 .app
+        run: |
+          cd build
+          xcodebuild \
+            -project "${PROJECT_NAME}.xcodeproj" \
+            -scheme "${PROJECT_NAME}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination generic/platform=iOS \
+            -derivedDataPath ./DerivedData \
+            $SIGN_OPTS \
+            ONLY_ACTIVE_ARCH=NO \
+            | tail -n 40
+          echo "--- 产物 ---"
+          find ./DerivedData/Build/Products -maxdepth 2 -name "*.app"
+
+      - name: 打包 IPA（Payload + zip）
+        run: |
+          cd build
+          APP=$(find ./DerivedData/Build/Products -maxdepth 2 -name "*.app" | head -n 1)
+          echo "打包: $APP"
+          rm -rf Payload && mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry "${PROJECT_NAME}.ipa" Payload
+          ls -lh "${PROJECT_NAME}.ipa"
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.project_name }}-ios-ipa
+          path: build/${{ github.event.inputs.project_name }}.ipa
+          retention-days: 30
