@@ -93,6 +93,11 @@ jobs:
           # 把没有 Mach-O 的空壳 .app 当成成功发出去（已踩过坑）。
           set -o pipefail
           cd build
+          # ★ metal_cpp 弱链接补丁：
+          #   Godot 4.7.2 自带的 metal_cpp 快照引用了比 runner SDK(iOS 18.5)更新的符号
+          #   （MTLTensorDomain、CADynamicRange*），runner 上任意稳定版 Xcode 都拿不到。
+          #   这些都是“可用性常量”，基础游戏运行时并不使用，标记为允许未定义(弱链接)即可通过链接。
+          UNDEF_OPTS="-Wl,-U,_MTLTensorDomain -Wl,-U,_CADynamicRangeAutomatic -Wl,-U,_CADynamicRangeConstrainedHigh -Wl,-U,_CADynamicRangeHigh -Wl,-U,_CADynamicRangeStandard"
           xcodebuild \
             -project "${PROJECT_NAME}.xcodeproj" \
             -scheme "${PROJECT_NAME}" \
@@ -101,6 +106,7 @@ jobs:
             -destination generic/platform=iOS \
             -derivedDataPath ./DerivedData \
             $SIGN_OPTS \
+            OTHER_LDFLAGS="\$(inherited) ${UNDEF_OPTS}" \
             ONLY_ACTIVE_ARCH=NO \
             | tail -n 60
           echo "--- 产物 ---"
